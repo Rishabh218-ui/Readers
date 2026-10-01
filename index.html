@@ -159,33 +159,46 @@ async function refresh(){
 }
 $('q').oninput=srch;
 
-/* adding books - Fixed with proper ArrayBuffer handling */
+/* adding books */
 async function addFiles(files){
   for(const f of files){
     try{
-      const buf = await new Promise((resolve, reject) => {
+      const buffer = await new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = (e) => reject(e);
         reader.readAsArrayBuffer(f);
       });
 
-      const bk = ePub(buf);
-      await bk.ready; 
-      const m = await bk.loaded.metadata; 
-      let cover = null;
+      const book = ePub(buffer);
+      await book.ready;
+      const metadata = await book.loaded.metadata;
+      
+      let coverBlob = null;
       try{
-        const u = await bk.coverUrl();
-        if(u) cover = await (await fetch(u)).blob();
-      }catch(e){}
+        const coverUrl = await book.coverUrl();
+        if(coverUrl) {
+          const res = await fetch(coverUrl);
+          coverBlob = await res.blob();
+        }
+      }catch(err){}
 
-      const id = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-      await put('d', buf, id);
-      await put('b',{id, title:m.title||f.name.replace(/\.epub$/i,''), author:m.creator||'', cover, pct:0, left:null, cfi:null, added:Date.now()});
-      bk.destroy();
-    }catch(e){
-      toast('Could not read '+f.name);
-      console.error(e);
+      const bookId = 'bk_' + Date.now() + Math.random().toString(36).substring(2, 6);
+      await put('d', buffer, bookId);
+      await put('b', {
+        id: bookId,
+        title: metadata.title || f.name.replace(/\.epub$/i, ''),
+        author: metadata.creator || 'Unknown Author',
+        cover: coverBlob,
+        pct: 0,
+        left: null,
+        cfi: null,
+        added: Date.now()
+      });
+      book.destroy();
+    }catch(err){
+      toast('Failed to load: ' + f.name);
+      console.error(err);
     }
   }
   await refresh();
@@ -211,7 +224,7 @@ function applyType(){
 }
 
 /* reading */
-const upd=()=>{if(!cur||!book)return;try{if(book.locations.length())cur.pct=book.locations.percentageFromCfi(cur.cfi)}catch(e){}$('pl').textContent=(cur.left!=null?`${cur.left} pages left in chapter` : '')+(cur.pct?` · ${Math.round(cur.pct*100)}%`:'');put('b',cur)};
+const upd=()=>{if(!cur||!book)return;try{if(book.locations.length())cur.pct=book.locations.percentageFromCfi(cur.cfi)}catch(e){}$('pl').textContent=(cur.left!=null?`${cur.left} pages left in chapter`:'' )+(cur.pct?` · ${Math.round(cur.pct*100)}%`:'');put('b',cur)};
 async function openBook(id){
   cur=books.find(b=>b.id===id);if(!cur)return;
   const buf=await get('d',id);if(!buf){toast('Book file missing');return}
