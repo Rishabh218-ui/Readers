@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Reader</title>
+<link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@700&family=Literata:ital,wght@0,400;0,600;1,400&family=Source+Serif+4:wght@400;600&family=EB+Garamond:wght@400;600&family=Lora:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -78,7 +79,7 @@ h3{font:600 12px Literata,serif;color:var(--mut);margin-bottom:12px;letter-spaci
 <main id="home" class="tab on">
   <h1>Reading Now</h1>
   <div id="now" class="now"></div>
-  <div class="hi" style="margin-top:24px;">
+  <div class="hi">
     <h2>Welcome Back</h2><h2 id="nm"></h2>
   </div>
 </main>
@@ -158,22 +159,15 @@ async function refresh(){
 }
 $('q').oninput=srch;
 
-/* adding books using Base64 string conversion for mobile WebView stability */
+/* adding books */
 async function addFiles(files){
   for(const f of files){
     try{
-      const base64Data = await new Promise((res, rej) => {
-        const reader = new FileReader();
-        reader.onload = () => res(reader.result);
-        reader.onerror = rej;
-        reader.readAsDataURL(f);
-      });
-      
-      const bk = ePub(base64Data);
+      const buf=await f.arrayBuffer(),bk=ePub(buf.slice(0));
       await bk.ready;const m=await bk.loaded.metadata;let cover=null;
       try{const u=await bk.coverUrl();if(u)cover=await(await fetch(u)).blob()}catch(e){}
       const id=Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-      await put('d', base64Data, id);
+      await put('d',buf,id);
       await put('b',{id,title:m.title||f.name.replace(/\.epub$/i,''),author:m.creator||'',cover,pct:0,left:null,cfi:null,added:Date.now()});
       bk.destroy();
     }catch(e){toast('Could not read '+f.name)}
@@ -200,22 +194,13 @@ function applyType(){
   rend.themes.override('line-height','1.55');rend.themes.font(F[S.font]);rend.themes.fontSize(S.size+'%');
 }
 
-/* reading via Data URL */
+/* reading */
 const upd=()=>{if(!cur||!book)return;try{if(book.locations.length())cur.pct=book.locations.percentageFromCfi(cur.cfi)}catch(e){}$('pl').textContent=(cur.left!=null?`${cur.left} pages left in chapter`:'')+(cur.pct?` · ${Math.round(cur.pct*100)}%`:'');put('b',cur)};
 async function openBook(id){
   cur=books.find(b=>b.id===id);if(!cur)return;
-  const dataUrl=await get('d',id);if(!dataUrl){toast('Book file missing');return}
+  const buf=await get('d',id);if(!buf){toast('Book file missing');return}
   cur.opened=Date.now();$('rd').classList.add('on');$('rt').classList.remove('off');$('tpm').classList.remove('on');$('pl').textContent='';
-  
-  try{
-    book=ePub(dataUrl);
-    rend=book.renderTo('view',{width:'100%',height:'100%',flow:'paginated',spread:'none'});
-  }catch(err){
-    toast('Could not parse EPUB file');
-    closeBook();
-    return;
-  }
-
+  book=ePub(buf);rend=book.renderTo('view',{width:'100%',height:'100%',flow:'paginated',spread:'none'});
   rend.hooks.content.register(c=>c.addStylesheet(FU));
   rend.on('relocated',l=>{if(!cur)return;cur.cfi=l.start.cfi;const d=l.start.displayed;cur.left=d?d.total-d.page:null;upd()});
   applyType();
@@ -256,3 +241,4 @@ document.addEventListener('contextmenu',async e=>{
 </script>
 </body>
 </html>
+
