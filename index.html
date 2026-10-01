@@ -158,15 +158,22 @@ async function refresh(){
 }
 $('q').oninput=srch;
 
-/* adding books */
+/* adding books using Base64 string conversion for mobile WebView stability */
 async function addFiles(files){
   for(const f of files){
     try{
-      const buf=await f.arrayBuffer(),bk=ePub(buf.slice(0));
+      const base64Data = await new Promise((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = () => res(reader.result);
+        reader.onerror = rej;
+        reader.readAsDataURL(f);
+      });
+      
+      const bk = ePub(base64Data);
       await bk.ready;const m=await bk.loaded.metadata;let cover=null;
       try{const u=await bk.coverUrl();if(u)cover=await(await fetch(u)).blob()}catch(e){}
       const id=Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-      await put('d',buf,id);
+      await put('d', base64Data, id);
       await put('b',{id,title:m.title||f.name.replace(/\.epub$/i,''),author:m.creator||'',cover,pct:0,left:null,cfi:null,added:Date.now()});
       bk.destroy();
     }catch(e){toast('Could not read '+f.name)}
@@ -193,15 +200,15 @@ function applyType(){
   rend.themes.override('line-height','1.55');rend.themes.font(F[S.font]);rend.themes.fontSize(S.size+'%');
 }
 
-/* reading */
+/* reading via Data URL */
 const upd=()=>{if(!cur||!book)return;try{if(book.locations.length())cur.pct=book.locations.percentageFromCfi(cur.cfi)}catch(e){}$('pl').textContent=(cur.left!=null?`${cur.left} pages left in chapter`:'')+(cur.pct?` · ${Math.round(cur.pct*100)}%`:'');put('b',cur)};
 async function openBook(id){
   cur=books.find(b=>b.id===id);if(!cur)return;
-  const buf=await get('d',id);if(!buf){toast('Book file missing');return}
+  const dataUrl=await get('d',id);if(!dataUrl){toast('Book file missing');return}
   cur.opened=Date.now();$('rd').classList.add('on');$('rt').classList.remove('off');$('tpm').classList.remove('on');$('pl').textContent='';
   
   try{
-    book=ePub(buf.slice(0));
+    book=ePub(dataUrl);
     rend=book.renderTo('view',{width:'100%',height:'100%',flow:'paginated',spread:'none'});
   }catch(err){
     toast('Could not parse EPUB file');
