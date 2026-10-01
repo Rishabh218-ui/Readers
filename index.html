@@ -159,18 +159,18 @@ async function refresh(){
 }
 $('q').oninput=srch;
 
-/* adding books (Fixed for mobile with Base64 FileReader) */
+/* adding books - Fixed with proper ArrayBuffer handling */
 async function addFiles(files){
   for(const f of files){
     try{
-      const base64 = await new Promise((resolve, reject) => {
+      const buf = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
         reader.onerror = reject;
-        reader.readAsDataURL(f);
+        reader.readAsArrayBuffer(f);
       });
 
-      const bk = ePub(base64);
+      const bk = ePub(buf);
       await bk.ready; 
       const m = await bk.loaded.metadata; 
       let cover = null;
@@ -180,7 +180,7 @@ async function addFiles(files){
       }catch(e){}
 
       const id = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-      await put('d', base64, id);
+      await put('d', buf, id);
       await put('b',{id, title:m.title||f.name.replace(/\.epub$/i,''), author:m.creator||'', cover, pct:0, left:null, cfi:null, added:Date.now()});
       bk.destroy();
     }catch(e){
@@ -211,7 +211,7 @@ function applyType(){
 }
 
 /* reading */
-const upd=()=>{if(!cur||!book)return;try{if(book.locations.length())cur.pct=book.locations.percentageFromCfi(cur.cfi)}catch(e){}$('pl').textContent=(cur.left!=null?`${cur.left} pages left in chapter`:'')+(cur.pct?` · ${Math.round(cur.pct*100)}%`:'');put('b',cur)};
+const upd=()=>{if(!cur||!book)return;try{if(book.locations.length())cur.pct=book.locations.percentageFromCfi(cur.cfi)}catch(e){}$('pl').textContent=(cur.left!=null?`${cur.left} pages left in chapter` : '')+(cur.pct?` · ${Math.round(cur.pct*100)}%`:'');put('b',cur)};
 async function openBook(id){
   cur=books.find(b=>b.id===id);if(!cur)return;
   const buf=await get('d',id);if(!buf){toast('Book file missing');return}
