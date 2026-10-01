@@ -1,0 +1,12 @@
+{
+  "background_color": "#000000",
+  "dir": "ltr",
+  "display": "standalone",
+  "name": "Rishabh",
+  "orientation": "any",
+  "scope": "/",
+  "short_name": "Rishabh",
+  "start_url": "/",
+  "theme_color": "#000000",
+  "id": "Hi"
+}
