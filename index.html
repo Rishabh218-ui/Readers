@@ -159,18 +159,34 @@ async function refresh(){
 }
 $('q').oninput=srch;
 
-/* adding books */
+/* adding books (Fixed for mobile with Base64 FileReader) */
 async function addFiles(files){
   for(const f of files){
     try{
-      const buf=await f.arrayBuffer(),bk=ePub(buf.slice(0));
-      await bk.ready;const m=await bk.loaded.metadata;let cover=null;
-      try{const u=await bk.coverUrl();if(u)cover=await(await fetch(u)).blob()}catch(e){}
-      const id=Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-      await put('d',buf,id);
-      await put('b',{id,title:m.title||f.name.replace(/\.epub$/i,''),author:m.creator||'',cover,pct:0,left:null,cfi:null,added:Date.now()});
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(f);
+      });
+
+      const bk = ePub(base64);
+      await bk.ready; 
+      const m = await bk.loaded.metadata; 
+      let cover = null;
+      try{
+        const u = await bk.coverUrl();
+        if(u) cover = await (await fetch(u)).blob();
+      }catch(e){}
+
+      const id = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+      await put('d', base64, id);
+      await put('b',{id, title:m.title||f.name.replace(/\.epub$/i,''), author:m.creator||'', cover, pct:0, left:null, cfi:null, added:Date.now()});
       bk.destroy();
-    }catch(e){toast('Could not read '+f.name)}
+    }catch(e){
+      toast('Could not read '+f.name);
+      console.error(e);
+    }
   }
   await refresh();
 }
@@ -241,4 +257,3 @@ document.addEventListener('contextmenu',async e=>{
 </script>
 </body>
 </html>
-
