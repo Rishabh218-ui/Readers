@@ -200,12 +200,11 @@ async function openBook(id){
   const buf=await get('d',id);if(!buf){toast('Book file missing');return}
   cur.opened=Date.now();$('rd').classList.add('on');$('rt').classList.remove('off');$('tpm').classList.remove('on');$('pl').textContent='';
   
-  // Handshake fix for mobile webviews to parse ArrayBuffers cleanly
   try{
-    book=ePub(buf);
+    book=ePub(buf.slice(0));
     rend=book.renderTo('view',{width:'100%',height:'100%',flow:'paginated',spread:'none'});
   }catch(err){
-    toast('Initialization error');
+    toast('Could not parse EPUB file');
     closeBook();
     return;
   }
